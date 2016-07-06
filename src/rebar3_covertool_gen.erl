@@ -28,7 +28,7 @@ do(State) ->
     InputFiles = input_files(),
     Apps = rebar_state:project_apps(State),
     case generate( OutputFiles, InputFiles, Apps ) of
-        {ok, _} ->
+        ok ->
             {ok, State};
         Error ->
             {error, {?MODULE, Error}}
@@ -48,8 +48,19 @@ output_files() ->
 
 input_files() ->
     CoverDataFiles = ["eunit.coverdata", "ct.coverdata"],
-    ["_build/test/cover/" ++ File || File <- CoverDataFiles].
-    
+    FullPaths = ["_build/test/cover/" ++ File || File <- CoverDataFiles],
+    filter_existing_inputs(FullPaths).
+
+filter_existing_inputs([]) ->
+    [];
+filter_existing_inputs([H|T]) ->
+    case file_exists(H) of
+        true ->
+            [H|filter_existing_inputs(T)];
+        false ->
+            rebar_api:info( "Skipping non-existing file ~s", [H] ),
+            filter_existing_inputs(T)
+    end.
 
 generate( OutputFiles, InputFiles, Apps ) ->
     %% blow away any output files (if present), and make directory exist
@@ -98,4 +109,12 @@ generate_app( App, Result ) ->
 outdir() ->
     "_build/test/covertool".
 
-        
+file_exists(Filename) ->
+    case file:read_file_info(Filename) of
+        {ok, _} ->
+            true;
+        {error, enoent} ->
+            false;
+        Reason ->
+            exit(Reason)
+    end.
